@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>AI 内部提效工具集</title>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<style>
+:root{--primary:#3b82f6;--bg:#f8fafc;--card:#fff;--border:#e2e8f0;--text:#1e293b;--muted:#94a3b8;--danger:#ef4444;--success:#10b981}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+.header{background:#fff;border-bottom:1px solid var(--border);padding:.8rem 2rem;display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:1.2rem;font-weight:700;color:var(--primary)}
+.tab-bar{display:flex;border-bottom:2px solid var(--border);padding:0 2rem;background:#fff}
+.tab-btn{padding:.8rem 1.5rem;border:none;background:none;font-size:.95rem;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .2s}
+.tab-btn:hover{color:var(--text)}.tab-btn.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+.main{max-width:1400px;margin:0 auto;padding:1.5rem 2rem}
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin-bottom:1rem}
+.card-title{font-size:1.1rem;font-weight:600;margin-bottom:.8rem}
+.row{display:flex;gap:1rem}.col{flex:1}
+textarea{width:100%;padding:.8rem;border:1px solid var(--border);border-radius:8px;font-size:.9rem;resize:vertical;font-family:inherit;min-height:200px}
+textarea:focus{outline:none;border-color:var(--primary)}
+.btn{padding:.6rem 1.5rem;border:none;border-radius:8px;font-size:.9rem;cursor:pointer;font-weight:600;transition:all .2s}
+.btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{opacity:.9}.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-outline{background:#fff;border:1px solid var(--border);color:var(--text)}.btn-outline:hover{background:var(--bg)}
+.btn-sm{padding:.3rem .8rem;font-size:.8rem}
+.badge{display:inline-block;padding:.15rem .6rem;border-radius:12px;font-size:.8rem;font-weight:600}
+.badge-done{background:#d1fae5;color:#065f46}.badge-progress{background:#dbeafe;color:#1e40af}.badge-delayed{background:#ffedd5;color:#9a3412}.badge-noupdate{background:#fee2e2;color:#991b1b}.badge-low{background:#d1fae5;color:#065f46}.badge-medium{background:#ffedd5;color:#9a3412}.badge-high{background:#fee2e2;color:#991b1b}
+.stat-row{display:flex;gap:1rem;margin:1rem 0}.stat-item{flex:1;text-align:center;padding:1rem;background:var(--bg);border-radius:8px}
+.stat-value{font-size:1.6rem;font-weight:700}.stat-label{font-size:.8rem;color:var(--muted)}
+.tracking-item{background:var(--bg);border-left:4px solid var(--primary);border-radius:8px;padding:.8rem 1rem;margin:.6rem 0}
+.tracking-item.risk{border-left-color:var(--danger);background:#fef2f2}
+.evidence{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:.5rem .8rem;margin:.4rem 0;font-size:.85rem;color:#166534}
+.evidence.weak{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+.result-box{background:#f8fafc;border:1px solid var(--border);border-radius:8px;padding:1.2rem;line-height:1.7;max-height:600px;overflow-y:auto;white-space:pre-wrap;font-size:.9rem}
+.error{color:var(--danger)}.loading{text-align:center;padding:2rem;color:var(--muted)}
+.spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+{% raw %}
+<div id="app">
+<div class="header">
+    <div class="logo">AI 内部提效工具</div>
+    <div>
+        <span v-if="apiConfigured===null" style="font-size:.8rem;color:var(--muted)">检查API...</span>
+        <span v-else-if="apiConfigured" style="font-size:.8rem;color:var(--success)">DeepSeek API OK</span>
+        <span v-else style="font-size:.8rem;color:var(--danger)">API未配置，请检查.env文件</span>
+    </div>
+</div>
+<div class="tab-bar">
+    <button class="tab-btn" :class="{active:tab==='track'}" @click="tab='track'">会议决策追踪器</button>
+    <button class="tab-btn" :class="{active:tab==='slim'}" @click="tab='slim'">说明书瘦身器</button>
+    <button class="tab-btn" :class="{active:tab==='email'}" @click="tab='email'">智能客服回复</button>
+</div>
+<div class="main">
+
+<!-- TAB 1 -->
+<div v-show="tab==='track'">
+<p style="color:var(--muted);margin-bottom:1rem">上传录音自动转写 → AI提取结构化纪要 → 选两次会议追踪决策</p>
+
+<div class="card"><div class="card-title">上传会议录音</div>
+<div style="display:flex;gap:.5rem;align-items:center">
+    <input type="file" ref="audioInput" accept=".mp3,.wav,.m4a,.ogg,.flac,.webm" @change="e=>audioFile=e.target.files[0]" style="display:none">
+    <button class="btn btn-outline btn-sm" @click="$refs.audioInput.click()">选择音频</button>
+    <span v-if="audioFile" style="font-size:.85rem;color:var(--success)">{{audioFile.name}}</span>
+    <button class="btn btn-primary btn-sm" @click="uploadAudio" :disabled="audioLoading||!audioFile">上传转写</button>
+    <span v-if="audioLoading" style="color:var(--primary)"><span class="spinner" style="width:14px;height:14px"></span> 转写中...</span>
+</div>
+<div v-if="audioResult" style="margin-top:.8rem;background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:.8rem;max-height:250px;overflow-y:auto;white-space:pre-wrap;font-size:.9rem">{{audioResult.minutes||audioResult.transcript}}</div>
+</div>
+
+<div class="row">
+    <div class="col"><div class="card"><div class="card-title">上次会议
+        <select v-model="selM1" @change="onSelect" style="width:100%;padding:.5rem;border-radius:6px;border:1px solid var(--border);margin-bottom:.5rem" :disabled="!meetings.length">
+            <option value="">-- 选择已保存会议 --</option>
+            <option v-for="m in meetings" :value="m.id">#{{m.id}} {{m.saved_at.slice(0,10)}}</option>
+        </select></div>
+        <textarea v-model="meeting1" placeholder="或直接粘贴..." style="min-height:120px"></textarea>
+    </div></div>
+    <div class="col"><div class="card"><div class="card-title">本次会议
+        <select v-model="selM2" @change="onSelect" style="width:100%;padding:.5rem;border-radius:6px;border:1px solid var(--border);margin-bottom:.5rem" :disabled="!meetings.length">
+            <option value="">-- 选择已保存会议 --</option>
+            <option v-for="m in meetings" :value="m.id">#{{m.id}} {{m.saved_at.slice(0,10)}}</option>
+        </select></div>
+        <textarea v-model="meeting2" placeholder="或直接粘贴..." style="min-height:120px"></textarea>
+    </div></div>
+</div>
+
+<div style="display:flex;gap:.5rem;margin-bottom:1rem">
+    <button class="btn btn-primary" @click="runTrack" :disabled="trackLoading||(!meeting1&&!selM1)||(!meeting2&&!selM2)">追踪决策</button>
+    <button class="btn btn-outline btn-sm" @click="loadMeetings">刷新列表</button>
+    <button class="btn btn-outline btn-sm" @click="loadDemo('meeting')">加载示例</button>
+</div>
+
+<div v-if="trackLoading" class="loading"><div class="spinner"></div> AI分析中...</div>
+<div v-if="trackError" class="error">{{trackError}}</div>
+<div v-if="trackResult">
+    <div class="stat-row">
+        <div class="stat-item"><div class="stat-value">{{trackResult.decision_count}}</div><div class="stat-label">上次决策</div></div>
+        <div class="stat-item"><div class="stat-value">{{countStatus('done')}}</div><div class="stat-label">已完成</div></div>
+        <div class="stat-item"><div class="stat-value">{{countStatus('in_progress')}}</div><div class="stat-label">进行中</div></div>
+        <div class="stat-item"><div class="stat-value">{{countStatus('delayed')}}</div><div class="stat-label">延迟</div></div>
+        <div class="stat-item"><div class="stat-value" :style="{color:countStatus('no_update')>0?'var(--danger)':''}">{{countStatus('no_update')}}</div><div class="stat-label">无进展</div></div>
+    </div>
+    <div class="card"><div class="card-title">逐项追踪</div>
+        <div v-for="(dec,i) in trackResult.decisions" :key="i" class="tracking-item" :class="{risk:getTrack(i).status==='no_update'}">
+            <strong>决策{{i+1}}：</strong>{{dec.content}}<br>
+            <span style="font-size:.85rem;color:var(--muted)">责任人：{{dec.owner}} | 承诺：{{dec.deadline}}</span>
+            <span class="badge" :class="'badge-'+({done:'done',in_progress:'progress',delayed:'delayed',no_update:'noupdate'}[getTrack(i).status]||'low')">{{statusLabel(getTrack(i).status)}}</span>
+            <span class="badge" :class="'badge-'+getTrack(i).risk_level">{{riskLabel(getTrack(i).risk_level)}}</span>
+            <div v-if="getTrack(i).evidence&&getTrack(i).evidence!=='无'" class="evidence" :class="{weak:getTrack(i).status==='delayed'||getTrack(i).status==='no_update'}">{{getTrack(i).evidence}}</div>
+        </div>
+    </div>
+    <div v-if="trackResult.new_decisions&&trackResult.new_decisions.length" class="card"><div class="card-title">本次新决策（{{trackResult.new_count}}项）</div>
+        <div v-for="(nd,i) in trackResult.new_decisions" :key="'n'+i">{{i+1}}. <strong>{{nd.content}}</strong> —— {{nd.owner}} | {{nd.deadline}}</div>
+    </div>
+</div>
+</div>
+
+<!-- TAB 2: PDF说明书瘦身 -->
+<div v-show="tab==='slim'">
+<p style="color:var(--muted);margin-bottom:1rem">上传PDF说明书 → AI智能压缩为速查卡</p>
+
+<div class="card"><div class="card-title">上传PDF文件</div>
+<div style="display:flex;gap:.5rem;align-items:center">
+    <input type="file" ref="pdfInput" accept=".pdf" @change="handlePdf" style="display:none">
+    <button class="btn btn-outline btn-sm" @click="$refs.pdfInput.click()">选择PDF文件</button>
+    <span v-if="pdfFile" style="font-size:.85rem;color:var(--success)">{{pdfFile.name}}（{{(pdfFile.size/1024).toFixed(0)}}KB）</span>
+    <button class="btn btn-primary btn-sm" @click="runSlim" :disabled="slimLoading||!pdfFile">智能瘦身</button>
+</div>
+</div>
+
+<div class="card" v-if="!pdfFile"><div class="card-title">或直接粘贴文本</div>
+<textarea v-model="manualText" placeholder="粘贴说明书文本..." style="min-height:180px"></textarea>
+<button class="btn btn-primary btn-sm" @click="runSlimText" :disabled="slimLoading||!manualText" style="margin-top:.5rem">文本瘦身</button>
+</div>
+
+<div v-if="slimLoading" class="loading"><div class="spinner"></div> AI压缩中...</div>
+<div v-if="slimError" class="error">{{slimError}}</div>
+<div v-if="slimResult">
+    <div class="stat-row">
+        <div class="stat-item"><div class="stat-value">{{slimResult.orig_chars.toLocaleString()}}</div><div class="stat-label">原文</div></div>
+        <div class="stat-item"><div class="stat-value">{{slimResult.result_chars.toLocaleString()}}</div><div class="stat-label">速查卡</div></div>
+        <div class="stat-item"><div class="stat-value">{{slimRatio}}%</div><div class="stat-label">压缩率</div></div>
+    </div>
+    <div class="card"><div class="card-title">速查卡 <button class="btn btn-outline btn-sm" @click="copySlim" style="float:right">复制</button></div><div class="result-box">{{slimResult.result}}</div></div>
+</div>
+</div>
+
+<!-- TAB 3: 智能客服回复 -->
+<div v-show="tab==='email'">
+<p style="color:var(--muted);margin-bottom:1rem">中英文消息 · 10类意图识别</p>
+<div class="card"><div class="card-title">粘贴客户消息</div><textarea v-model="emailText" placeholder="邮件/在线客服/WhatsApp，中英文均可..." style="min-height:200px"></textarea></div>
+<button class="btn btn-primary" @click="runEmail" :disabled="emailLoading||!emailText" style="margin-right:.5rem">分析和生成回复</button>
+<button class="btn btn-outline btn-sm" @click="loadDemo('email')">加载示例</button>
+<template v-if="emailSamples"><button class="btn btn-outline btn-sm" v-for="(txt,label) in emailSamples" :key="label" @click="emailText=txt" style="margin-left:.3rem;font-size:.75rem">{{label}}</button></template>
+<div v-if="emailLoading" class="loading"><div class="spinner"></div> 分析中...</div>
+<div v-if="emailError" class="error">{{emailError}}</div>
+<div v-if="emailResult">
+    <div class="stat-row">
+        <div class="stat-item"><div class="stat-value">{{emailResult.language==='zh'?'中文':'English'}}</div><div class="stat-label">语言</div></div>
+        <div class="stat-item"><div class="stat-value">{{emailResult.category_cn}}</div><div class="stat-label">意图</div></div>
+    </div>
+    <div class="card"><div class="card-title">回复草稿</div><div class="result-box">{{emailResult.reply}}</div></div>
+</div>
+</div>
+
+</div></div>
+{% endraw %}
+
+<script>
+const {createApp}=Vue;
+createApp({
+data(){return{
+    tab:'track',apiConfigured:null,
+    // Track
+    audioFile:null,audioLoading:false,audioResult:null,
+    meeting1:'',meeting2:'',selM1:'',selM2:'',meetings:[],trackLoading:false,trackError:'',trackResult:null,
+    // Slim
+    pdfFile:null,manualText:'',slimLoading:false,slimError:'',slimResult:null,
+    // Email
+    emailText:'',emailLoading:false,emailError:'',emailResult:null,emailSamples:{},
+}},
+computed:{slimRatio(){return this.slimResult?Math.round(this.slimResult.result_chars/this.slimResult.orig_chars*100):0}},
+async mounted(){
+    try{const r=await fetch('/api/status');const d=await r.json();this.apiConfigured=d.configured}catch(e){}
+},
+methods:{
+    // ── Audio ──
+    async uploadAudio(){
+        if(!this.audioFile)return;
+        this.audioLoading=true;this.trackError='';this.audioResult=null;
+        try{
+            const fd=new FormData();fd.append('audio',this.audioFile);
+            const r=await fetch('/api/meeting/upload-audio',{method:'POST',body:fd});
+            const d=await r.json();if(!r.ok)throw new Error(d.error||'失败');
+            this.audioResult=d.meeting;this.meeting2=d.meeting.minutes||d.meeting.transcript;
+            await this.loadMeetings();
+        }catch(e){this.trackError=e.message}finally{this.audioLoading=false}
+    },
+    // ── Track ──
+    async runTrack(){
+        this.trackLoading=true;this.trackError='';this.trackResult=null;
+        try{
+            const body={};
+            if(this.selM1&&this.selM2){body.meeting1_id=this.selM1;body.meeting2_id=this.selM2}
+            else{body.meeting1=this.meeting1;body.meeting2=this.meeting2}
+            const r=await fetch('/api/track',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+            const d=await r.json();if(!r.ok)throw new Error(d.error||'失败');
+            this.trackResult=d;
+        }catch(e){this.trackError=e.message}finally{this.trackLoading=false}
+    },
+    async loadMeetings(){try{const r=await fetch('/api/meetings');this.meetings=(await r.json()).meetings||[]}catch(e){}}
+    ,
+    onSelect(){
+        if(this.selM1){const m=this.meetings.find(x=>String(x.id)===String(this.selM1));if(m)this.meeting1=m.minutes||m.text}
+        if(this.selM2){const m=this.meetings.find(x=>String(x.id)===String(this.selM2));if(m)this.meeting2=m.minutes||m.text}
+    },
+    getTrack(i){return(this.trackResult&&this.trackResult.tracking)?(this.trackResult.tracking[i]||{}):{}},
+    countStatus(s){return(this.trackResult&&this.trackResult.tracking)?this.trackResult.tracking.filter(t=>t.status===s).length:0},
+    statusLabel(s){return{done:'完成',in_progress:'进行中',delayed:'延迟',no_update:'无进展'}[s]||s},
+    riskLabel(r){return{low:'低',medium:'中',high:'高'}[r]||r},
+    // ── Slim ──
+    handlePdf(e){this.pdfFile=e.target.files[0]||null},
+    async runSlim(){
+        if(!this.pdfFile)return;
+        this.slimLoading=true;this.slimError='';this.slimResult=null;
+        try{
+            const fd=new FormData();fd.append('file',this.pdfFile);
+            const r=await fetch('/api/slim',{method:'POST',body:fd});
+            const d=await r.json();if(!r.ok)throw new Error(d.error||'失败');
+            this.slimResult=d;
+        }catch(e){this.slimError=e.message}finally{this.slimLoading=false}
+    },
+    async runSlimText(){
+        this.slimLoading=true;this.slimError='';this.slimResult=null;
+        try{
+            const r=await fetch('/api/slim',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({manual_text:this.manualText})});
+            const d=await r.json();if(!r.ok)throw new Error(d.error||'失败');
+            this.slimResult=d;
+        }catch(e){this.slimError=e.message}finally{this.slimLoading=false}
+    },
+    copySlim(){if(this.slimResult)navigator.clipboard.writeText(this.slimResult.result)},
+    // ── Email ──
+    async runEmail(){
+        this.emailLoading=true;this.emailError='';this.emailResult=null;
+        try{
+            const r=await fetch('/api/email',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:this.emailText})});
+            const d=await r.json();if(!r.ok)throw new Error(d.error||'失败');
+            this.emailResult=d;
+        }catch(e){this.emailError=e.message}finally{this.emailLoading=false}
+    },
+    async loadDemo(type){
+        try{
+            const r=await fetch('/api/demo/'+type);const d=await r.json();
+            if(type==='meeting'){this.meeting1=d.m1;this.meeting2=d.m2;await this.loadMeetings()}
+            else if(type==='email'){this.emailSamples=d;this.emailText=d.zh_shipping||''}
+        }catch(e){alert('加载失败')}
+    }
+}}).mount('#app');
+</script>
+</body>
+</html>
