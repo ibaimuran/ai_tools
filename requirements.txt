@@ -2,3 +2,5 @@ flask
 openai
 python-dotenv
 PyPDF2
+openai-whisper
+librosa
