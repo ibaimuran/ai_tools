@@ -36,23 +36,24 @@ DEEPSEEK_API_KEY=sk-你的key
 ### 3. 启动
 
 ```bash
-python combined_app.py
+python app.py local
 ```
 
-浏览器打开 `http://127.0.0.1:5000`
+浏览器打开 `http://127.0.0.1:5001`
 
 ## 项目结构
 
 ```
 ai-tools/
-├── combined_app.py          # Flask 后端（全部路由）
+├── app.py                   # Flask 后端入口（全部路由）
+├── combined_app.py          # Flask 后端（旧版入口）
 ├── templates/
 │   └── index.html           # Vue 前端页面（3 个 Tab）
 ├── .env                     # API Key 配置（不提交到 Git）
+├── .gitignore
 ├── meetings.json            # 会议记录存储
 ├── requirements.txt
-├── README.md
-└── 学习计划.md
+└── README.md
 ```
 
 ## API 端点

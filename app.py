@@ -198,7 +198,7 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "local":
         try: get_whisper()
         except: pass
-        app.run(host="0.0.0.0", port=5000, debug=False)
+        app.run(host="0.0.0.0", port=5001, debug=False)
     else:
         while True:
             time.sleep(3600)
